@@ -21,12 +21,12 @@ func NewDepositClient(conn *grpc.ClientConn) *ClientDepo {
 	}
 }
 
-func (dc *ClientDepo) Deposit(ctx context.Context, in interface{}) (interface{}, error) {
+func (dc *ClientDepo) Deposit(ctx context.Context, in interface{}) (bool, error) {
 	var request *proto.DepositRequest
 	err := mapstructure.Decode(in, &request)
 
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
 	ctxOut, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -35,9 +35,9 @@ func (dc *ClientDepo) Deposit(ctx context.Context, in interface{}) (interface{},
 	data, err := dc.client.Deposit(ctxOut, request)
 
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	return data, nil
+	return data.GetOk(), nil
 }
 
 func (dc *ClientDepo) GetDeposit(ctx context.Context) (interface{}, error) {

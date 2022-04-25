@@ -2,7 +2,7 @@ package account_test
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"net"
 	"testing"
@@ -67,23 +67,26 @@ func (d *mockDepositServiceServer) GetDeposit(ctx context.Context, in *proto.Get
 
 func TestDepositServiceClient_Deposit(t *testing.T) {
 	test := []struct {
-		name   string
-		amount float32
-		res    bool
-		err    string
+		name    string
+		amount  float32
+		res     *proto.DepositResponse
+		errCode codes.Code
+		err     string
 	}{
 		{
 			"Invalid Request with Invalid Amount",
 			5000,
-			false,
-			"deposit value must be at least 10000",
+			nil,
+			codes.InvalidArgument,
+			fmt.Sprintf("cannot deposit %v", 5000),
 		},
-		// {
-		// 	"Valid Request with Valid Amount",
-		// 	10000,
-		// 	true,
-		// 	"",
-		// },
+		{
+			"Valid Request with Valid Amount",
+			10000,
+			&proto.DepositResponse{Ok: true},
+			codes.OK,
+			"",
+		},
 	}
 
 	ctx := context.Background()
@@ -95,45 +98,35 @@ func TestDepositServiceClient_Deposit(t *testing.T) {
 	}
 	defer conn.Close()
 
+	client := proto.NewDepositServiceClient(conn)
+
 	for _, tc := range test {
 		t.Run(tc.name, func(t *testing.T) {
-			var value bool
+			// var value bool
 			request := &proto.DepositRequest{Amount: tc.amount}
 			ctx := context.Background()
 
-			client := account.NewDepositClient(conn)
 			response, err := client.Deposit(ctx, request)
 
-			// log.Printf("amount: %v", tc.amount)
-
-			// log.Printf("request: %v", request)
-
-			// log.Printf("response: %v", response)
-
-			// log.Printf("value: %v", value)
-
-			if response != tc.res {
-				log.Print(tc)
-				log.Print(response)
-				t.Error("error: expected", tc.res, "received", response)
-			}
-
-			if err != nil && errors.Is(err, err) {
-				t.Error("error: expected", tc.err, "received", err)
-			}
-
 			if response != nil {
-				val := response.(*proto.DepositResponse)
-				value = val.Ok
-			}
-
-			if value != tc.res {
-				t.Error("error: expected", tc.res, "received:", value)
+				if response.GetOk() != tc.res.GetOk() {
+					t.Error("response: expected", tc.res.GetOk(), "received", response.GetOk())
+				}
 			}
 
 			if err != nil {
-				if er, _ := status.FromError(err); er.Message() != tc.err {
-					t.Error("Error message: ", tc.err, "received", er.Message())
+				if er, ok := status.FromError(err); ok {
+
+					log.Printf("tc.err: %v", tc.err)
+
+					log.Printf("er.Message: %v", er.Message())
+
+					if er.Code() != tc.errCode {
+						t.Error("error code: expected", codes.InvalidArgument, "received", er.Code())
+					}
+					if er.Message() != tc.err {
+						t.Error("error message: expected", tc.err, "received", er.Message())
+					}
 				}
 			}
 		})
